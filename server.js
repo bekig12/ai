@@ -52,13 +52,21 @@ app.post("/ask", async (req, res) => {
 // Node.js backend
 app.post("/translate", async (req, res) => {
   const { text } = req.body;
-  const response = await fetch("https://translate.argosopentech.com/translate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ q: text, source: "am", target: "en", format: "text" })
-  });
-  const data = await response.json();
-  res.json(data);
+
+  try {
+    const response = await fetch("https://translate.argosopentech.com/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q: text, source: "am", target: "en", format: "text" })
+    });
+
+    const data = await response.json();
+    res.json(data);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Translation failed" });
+  }
 });
 // Render uses PORT env variable
 const PORT = process.env.PORT || 3000;
