@@ -1,9 +1,12 @@
+// server.js
 const express = require("express");
 const fetch = require("node-fetch");
 const bodyParser = require("body-parser");
+const cors = require("cors");
 
 const app = express();
-app.use(bodyParser.json());
+app.use(cors());           // ✅ allow all origins
+app.use(bodyParser.json()); // parse JSON requests
 
 // CAMB.AI API Key
 const CAMB_API_KEY = "9e78e374-62ee-4c51-af2a-e5721b355563";
@@ -13,7 +16,7 @@ app.get("/", (req, res) => {
   res.send("Server is running!");
 });
 
-// Translate function
+// Translate function (Amharic ↔ English)
 async function translate(text, sourceLang, targetLang) {
   const createRes = await fetch("https://client.camb.ai/apis/translate", {
     method: "POST",
@@ -50,18 +53,8 @@ async function translate(text, sourceLang, targetLang) {
   return result.texts[0];
 }
 
-// Main AI route with CORS headers
+// Main AI route
 app.post("/ask", async (req, res) => {
-  // Set CORS headers
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  // Handle preflight requests
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-
   try {
     const { question } = req.body;
     if (!question) return res.status(400).json({ error: "No question provided" });
@@ -69,7 +62,7 @@ app.post("/ask", async (req, res) => {
     // 1️⃣ Translate Amharic → English
     const englishQuestion = await translate(question, 3, 1);
 
-    // 2️⃣ Call your AI endpoint
+    // 2️⃣ Call AI endpoint
     const aiRes = await fetch("https://ai-f7pq.onrender.com/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -90,4 +83,5 @@ app.post("/ask", async (req, res) => {
   }
 });
 
+// Start server
 app.listen(3000, () => console.log("Server running on port 3000"));
