@@ -65,7 +65,7 @@ app.post("/translate", async (req, res) => {
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Translation failed" });
+    res.status(500).json({ error: "Translation failed",message:err });
   }
 });
 // Render uses PORT env variable
