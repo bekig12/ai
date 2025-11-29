@@ -5,71 +5,89 @@ const bodyParser = require("body-parser");
 const app = express();
 app.use(bodyParser.json());
 
+// CAMB.AI API Key
 const CAMB_API_KEY = "9e78e374-62ee-4c51-af2a-e5721b355563";
 
-// Translate function (Amharic ↔ English)
+// Root route
+app.get("/", (req, res) => {
+  res.send("Server is running!");
+});
+
+// Translate function
 async function translate(text, sourceLang, targetLang) {
-    const createRes = await fetch("https://client.camb.ai/apis/translate", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "x-api-key": CAMB_API_KEY
-        },
-        body: JSON.stringify({
-            source_language: sourceLang,
-            target_language: targetLang,
-            texts: [text]
-        })
-    });
-    const createData = await createRes.json();
-    const taskId = createData.task_id;
+  const createRes = await fetch("https://client.camb.ai/apis/translate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": CAMB_API_KEY
+    },
+    body: JSON.stringify({
+      source_language: sourceLang,
+      target_language: targetLang,
+      texts: [text]
+    })
+  });
 
-    let runId = null;
-    while (!runId) {
-        const statusRes = await fetch(`https://client.camb.ai/apis/translate/${taskId}`, {
-            headers: { "x-api-key": CAMB_API_KEY }
-        });
-        const status = await statusRes.json();
-        if (status.status === "SUCCESS") runId = status.run_id;
-        else if (status.status === "ERROR") throw new Error("Translation failed");
-        else await new Promise(r => setTimeout(r, 1000));
-    }
+  const createData = await createRes.json();
+  const taskId = createData.task_id;
 
-    const resultRes = await fetch(`https://client.camb.ai/apis/translation-result/${runId}`, {
-        headers: { "x-api-key": CAMB_API_KEY }
+  let runId = null;
+  while (!runId) {
+    const statusRes = await fetch(`https://client.camb.ai/apis/translate/${taskId}`, {
+      headers: { "x-api-key": CAMB_API_KEY }
     });
-    const result = await resultRes.json();
-    return result.texts[0];
+    const status = await statusRes.json();
+    if (status.status === "SUCCESS") runId = status.run_id;
+    else if (status.status === "ERROR") throw new Error("Translation failed");
+    else await new Promise(r => setTimeout(r, 1000));
+  }
+
+  const resultRes = await fetch(`https://client.camb.ai/apis/translation-result/${runId}`, {
+    headers: { "x-api-key": CAMB_API_KEY }
+  });
+
+  const result = await resultRes.json();
+  return result.texts[0];
 }
 
-// AI endpoint
+// Main AI route with CORS headers
 app.post("/ask", async (req, res) => {
-    try {
-        const amharicText = req.body.text;
-        if (!amharicText) return res.status(400).json({ error: "No text provided" });
+  // Set CORS headers
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-        // 1️⃣ Translate Amharic → English
-        const englishText = await translate(amharicText, 3, 1);
+  // Handle preflight requests
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
 
-        // 2️⃣ Ask AI (replace with your AI endpoint)
-        const aiRes = await fetch("https://ai-f7pq.onrender.com/ask", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ question: englishText })
-        });
-        const aiData = await aiRes.json();
-        const englishAnswer = aiData.answer;
+  try {
+    const { question } = req.body;
+    if (!question) return res.status(400).json({ error: "No question provided" });
 
-        // 3️⃣ Translate English → Amharic
-        const amharicAnswer = await translate(englishAnswer, 1, 3);
+    // 1️⃣ Translate Amharic → English
+    const englishQuestion = await translate(question, 3, 1);
 
-        // 4️⃣ Return Amharic answer to frontend
-        res.json({ answer: amharicAnswer });
+    // 2️⃣ Call your AI endpoint
+    const aiRes = await fetch("https://ai-f7pq.onrender.com/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: englishQuestion })
+    });
+    const aiData = await aiRes.json();
+    const englishAnswer = aiData.answer;
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: err.message });
-    }
+    // 3️⃣ Translate English → Amharic
+    const amharicAnswer = await translate(englishAnswer, 1, 3);
+
+    // 4️⃣ Send Amharic answer to frontend
+    res.json({ answer: amharicAnswer });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.listen(3000, () => console.log("Server running on port 3000"));
